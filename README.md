@@ -66,7 +66,7 @@ docker compose up --build
 
 The auth service will be available at:
 
-- `http://localhost:8000`
+- `http://localhost:8080`
 
 ## Kubernetes
 

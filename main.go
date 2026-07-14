@@ -1,4 +1,4 @@
-package main
+package auth
 
 import (
 	"database/sql"
@@ -12,6 +12,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"golang.org/x/crypto/bcrypt"
+
+	"auth/src/database/migrations/create_users"
 )
 
 var (
@@ -61,24 +63,15 @@ func main() {
 }
 
 // -----------------------------------------------------------------------------
-// Migration
+// Migrate
 // -----------------------------------------------------------------------------
 
 func migrate() {
-	prefix := getEnv("DB_PREFIX", "")
-	query := `
-CREATE TABLE IF NOT EXISTS ` + prefix + `users
-(
-    id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    email         VARCHAR(255) NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-`
+    prefix := getEnv("DB_PREFIX", "")
 
-	if _, err := db.Exec(query); err != nil {
-		panic(err)
-	}
+    if err := create_users.Up(db, prefix); err != nil {
+        panic(err)
+    }
 }
 
 // -----------------------------------------------------------------------------

@@ -7,13 +7,13 @@ WORKDIR /app
 RUN apk add --no-cache git ca-certificates
 
 # Копируем файлы зависимостей и исходники
-COPY go.mod ./
+COPY go.mod go.sum* ./
 
+# Копируем исходники до разрешения модулей
+COPY . .
 
 # Скачиваем зависимости и создаём go.sum
 RUN go mod tidy && go mod download
-
-COPY . .
 
 # Собираем бинарник
 RUN go build -o auth .
@@ -29,5 +29,5 @@ RUN apk add --no-cache ca-certificates
 # Копируем бинарник из builder
 COPY --from=builder /app/auth .
 
-EXPOSE 8000
+EXPOSE 8080
 CMD ["./auth"]
