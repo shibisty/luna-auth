@@ -3,10 +3,12 @@ package routes
 
 import (
 	"fullstack"
+	"fullstack/env"
 	"fullstack/web"
 	"luna-keys"
 
 	"luna-auth/app/http/controllers"
+	"luna-auth/docs"
 )
 
 // API registers the public API. Every /v1 route needs an API key from the
@@ -17,6 +19,9 @@ func API(app *fullstack.App, v keys.Verifier) {
 	app.Router.Get("/healthz", func(c *web.Ctx) error {
 		return c.JSON(200, map[string]string{"status": "ok", "app": app.Config.Name})
 	}).Name("healthz")
+
+	// The OpenAPI document is public like the API; Swagger UI only with API_DOCS=true.
+	docs.Register(app.Router, "/openapi.yaml", "/docs", "Luna Auth API", env.Bool("API_DOCS", false))
 
 	api := controllers.NewAPI(app)
 	login := keys.RequireKey(v, keys.AuthLogin)

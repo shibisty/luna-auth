@@ -38,6 +38,24 @@ curl -H "X-API-Key: sk_live_…" -H "Content-Type: application/json" \
      -d '{"login":"ann","password":"…"}' http://localhost:8081/v1/sessions
 ```
 
+## Documentation
+
+- **OpenAPI 3.1**: [`docs/openapi.yaml`](docs/openapi.yaml), served at `GET /openapi.yaml`; Swagger UI
+  at `/docs` with `API_DOCS=true` (its scripts come from the jsDelivr CDN). A test keeps the
+  document and the routes in step.
+- **Postman**: import [`docs/postman/luna-auth.postman_collection.json`](docs/postman/luna-auth.postman_collection.json)
+  and the environment [`docs/postman/luna-local.postman_environment.json`](docs/postman/luna-local.postman_environment.json);
+  set `apiKey` (a server key with `auth:login`) and `adminKey` (a server key with
+  `auth:users.read` and `auth:users.write`) from the dashboard. Run the folders in order: each
+  login saves `accessToken` and `refreshToken` for the next requests; every run registers a new
+  user and deletes it at the end. From the command line:
+
+  ```bash
+  npx newman run docs/postman/luna-auth.postman_collection.json \
+      -e docs/postman/luna-local.postman_environment.json \
+      --env-var apiKey=sk_live_… --env-var adminKey=sk_live_…
+  ```
+
 ## Run
 
 From the workspace root (`luna/`): `gtr install`. Then here:
