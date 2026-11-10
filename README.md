@@ -1,83 +1,39 @@
-# Auth Service
+# luna-auth
 
-This service provides authentication endpoints for the Luna project. It is implemented in Go with Gin and uses PostgreSQL as the backing store.
+Registration and login of the end users of applications registered in luna-dashboard. Every
+`/v1` request carries the application's API key in `X-API-Key` and is checked through
+[luna-keys](../luna-keys) against the dashboard; the key decides the application and its scopes.
 
-## Features
+An API-only [fullstack](https://github.com/shibisty/fullstack.go) application on Postgres.
 
-- User registration
-- User login
-- JWT-based token verification
-- PostgreSQL connectivity with optional TLS settings
-- Automatic table creation on startup
+State: stage 2 of the migration plan — `GET /healthz` and `GET /v1/ping` (any key with
+`auth:login`: which application the key belongs to). Users, sessions and tokens arrive in stage 5.
 
-## Technology stack
+## Run
 
-- Go
-- Gin
-- PostgreSQL via pgx
-- JWT
-- bcrypt
-
-## Requirements
-
-- Go 1.22+
-- PostgreSQL
-- Environment variables for database and secret configuration
-
-## Environment variables
-
-The service reads the following variables:
-
-- `SECRET_KEY` — JWT signing secret (default: `super-secret`)
-- `DB_HOST` — PostgreSQL host (default: `localhost`)
-- `DB_PORT` — PostgreSQL port (default: `5432`)
-- `DB_NAME` — database name (default: `auth_db`)
-- `DB_USER` — database user (default: `postgres`)
-- `DB_PASSWORD` — database password
-- `DB_SSLMODE` — SSL mode (default: `disable`)
-- `DB_SSLROOTCERT`, `DB_SSLCERT`, `DB_SSLKEY`, `DB_SSLPASSWORD` — optional TLS settings
-- `DB_PREFIX` — optional table prefix
-
-## Run locally
-
-From the auth directory:
+From the workspace root (`luna/`): `gtr install`. Then here:
 
 ```bash
-go mod tidy
-go run .
+cp .env.example .env     # DATABASE_DSN, LUNA_DASHBOARD_URL, LUNA_DASHBOARD_TOKEN
+gtr dev                  # http://localhost:8081
 ```
 
-The service starts on port `8080`.
-
-## API endpoints
-
-- `GET /api/v1/ping` — health check
-- `POST /api/v1/register` — create a new user
-- `POST /api/v1/login` — authenticate a user and return a JWT
-- `GET /api/v1/verify?token=...` — validate a token
-
-## Docker
-
-Build and run the service with the project stack:
+| Variable | |
+|---|---|
+| `DATABASE_DSN` | Postgres, e.g. `postgres://auth_service:…@postgres:5432/auth_db` |
+| `LUNA_DASHBOARD_URL` | the dashboard's internal address |
+| `LUNA_DASHBOARD_TOKEN` | this service's token, one of the dashboard's `LUNA_SERVICE_TOKENS` |
+| `LUNA_KEYS_CACHE_TTL` | how long a valid key is trusted without asking again (60 s) |
+| `HTTP_TRUSTED_PROXIES` | nginx's network, so key network allow-lists see the client |
 
 ```bash
-docker compose up --build
+curl -H "X-API-Key: sk_live_…" http://localhost:8081/v1/ping
 ```
 
-The auth service will be available at:
+## Tests
 
-- `http://localhost:8080`
+`gtr run test` — the dashboard is faked with luna-keys' own handler.
 
-## Kubernetes
+## License
 
-The project includes Kubernetes manifests for deploying the auth service and PostgreSQL. Apply them with:
-
-```bash
-kubectl apply -f kubernetes.yml
-```
-
-If you are using Minikube, build the image first:
-
-```bash
-minikube image build -t auth:latest ./auth
-```
+MIT
