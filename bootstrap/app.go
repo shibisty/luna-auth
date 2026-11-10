@@ -7,7 +7,10 @@ import (
 	"orm"
 	postgres "orm-postgres"
 
+	"luna-auth/app/mail"
 	"luna-auth/app/providers"
+	"luna-auth/app/tokens"
+	"luna-auth/app/users"
 	"luna-auth/database/migrations"
 )
 
@@ -23,6 +26,9 @@ func NewApp(opts ...fullstack.Options) (*fullstack.App, error) {
 			Drivers:    map[string]func(string) orm.Driver{"postgres": postgres.Driver},
 			Migrations: migrations.All,
 		},
+		&users.Provider{},
+		&tokens.Provider{},
+		&mail.Provider{},
 		&providers.KeysProvider{},
 		&providers.RouteProvider{},
 	)

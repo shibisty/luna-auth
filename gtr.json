@@ -11,7 +11,6 @@
     "dependencies": {
         "fullstack": "github:shibisty/fullstack.go#^0.1",
         "fullstack-orm": "github:shibisty/fullstack.go-orm#^0.1",
-        "fullstack-passport": "github:shibisty/fullstack.go-passport#^0.1",
         "fullstack-validation": "github:shibisty/fullstack.go-validation#^0.1",
         "luna-keys": "workspace:^0.1",
         "migration": "github:shibisty/migration.go#^0.1",
@@ -19,7 +18,6 @@
         "orm": "github:shibisty/orm.go#^0.2",
         "orm-postgres": "github:shibisty/orm.go-postgres-driver#^0.1",
         "passport": "github:shibisty/passport.go#^0.2",
-        "passport-local": "github:shibisty/passport.go-local-strategy#^0.1",
         "passport-session-sql": "github:shibisty/passport.go-sql-session#^0.1"
     },
     "devDependencies": {
