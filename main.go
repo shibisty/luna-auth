@@ -1,5 +1,6 @@
 // Command luna-auth is the application: with no arguments it serves HTTP,
-// otherwise it runs a console command (go run . list).
+// otherwise it runs a console command (go run . list); `healthcheck` probes
+// the running server's /healthz (for Docker and Kubernetes).
 package main
 
 import (
@@ -11,6 +12,9 @@ import (
 )
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "healthcheck" {
+		os.Exit(healthcheck())
+	}
 	app, err := bootstrap.NewApp()
 	if err != nil {
 		log.Fatal(err)

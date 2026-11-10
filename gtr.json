@@ -23,8 +23,13 @@
     "devDependencies": {
         "fullstack-testing": "github:shibisty/fullstack.go-testing#^0.1"
     },
+    "build": {
+        "entry": ".",
+        "output": "luna-auth",
+        "ldflags": "-s -w"
+    },
     "scripts": {
-        "build": "go build -o build/luna-auth .",
+        "build": "gtr build",
         "db:seed": "go run . db:seed",
         "dev": "gtr dev",
         "migrate": "go run . migrate",
