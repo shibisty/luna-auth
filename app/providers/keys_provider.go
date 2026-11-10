@@ -29,5 +29,6 @@ func (KeysProvider) Register(app *fullstack.App) error {
 	client := keys.NewClient(cfg.DashboardURL, cfg.Token)
 	client.ValidTTL = cfg.ValidTTL
 	fullstack.Set[keys.Verifier](app, client)
+	fullstack.Set(app, cfg) // the same token guards the dashboard's calls to /internal/
 	return nil
 }

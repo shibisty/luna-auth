@@ -39,21 +39,35 @@ func specOperations(t *testing.T, spec string) map[string]bool {
 	return ops
 }
 
-// TestOpenAPIMatchesRoutes keeps docs/openapi.yaml and the routes in step:
-// every API route is documented and every documented operation exists.
+// TestOpenAPIMatchesRoutes keeps the OpenAPI documents and the routes in
+// step: every route is documented, the /internal/ ones in docs/internal.yaml,
+// the rest in docs/openapi.yaml, and every documented operation exists.
 func TestOpenAPIMatchesRoutes(t *testing.T) {
 	app := newApp(t, fakeDashboard(t, nil))
 	if _, err := app.Handler(); err != nil {
 		t.Fatal(err)
 	}
-	documented := specOperations(t, string(docs.OpenAPI))
-	routes := map[string]bool{}
+	public, internal := map[string]bool{}, map[string]bool{}
 	for _, r := range app.Router.Routes() {
-		if r.Path == "/openapi.yaml" || r.Path == "/docs" || r.Method == "HEAD" {
+		switch r.Path {
+		case "/openapi.yaml", "/docs", "/internal/openapi.yaml", "/internal/docs":
 			continue
 		}
-		routes[r.Method+" "+r.Path] = true
+		if r.Method == "HEAD" {
+			continue
+		}
+		if strings.HasPrefix(r.Path, "/internal/") {
+			internal[r.Method+" "+r.Path] = true
+		} else {
+			public[r.Method+" "+r.Path] = true
+		}
 	}
+	compare(t, "docs/openapi.yaml", specOperations(t, string(docs.OpenAPI)), public)
+	compare(t, "docs/internal.yaml", specOperations(t, string(docs.Internal)), internal)
+}
+
+func compare(t *testing.T, name string, documented, routes map[string]bool) {
+	t.Helper()
 	var missing, extra []string
 	for op := range routes {
 		if !documented[op] {
@@ -68,7 +82,7 @@ func TestOpenAPIMatchesRoutes(t *testing.T) {
 	sort.Strings(missing)
 	sort.Strings(extra)
 	if len(missing) > 0 || len(extra) > 0 {
-		t.Fatalf("docs/openapi.yaml is out of step with the routes:\n  routes not documented: %v\n  documented, no route: %v", missing, extra)
+		t.Errorf("%s is out of step with the routes:\n  routes not documented: %v\n  documented, no route: %v", name, missing, extra)
 	}
 }
 
@@ -78,6 +92,8 @@ func TestDocsServed(t *testing.T) {
 	c.Get("/docs").AssertNotFound() // API_DOCS is off
 
 	t.Setenv("API_DOCS", "true")
+	c.Get("/internal/openapi.yaml").AssertOK().AssertSee("openapi: 3.1.0", "/internal/v1/apps/{app}/users")
 	c = apptest.New(t, newApp(t, fakeDashboard(t, nil)))
 	c.Get("/docs").AssertOK().AssertSee("swagger-ui", "/openapi.yaml")
+	c.Get("/internal/docs").AssertOK().AssertSee("swagger-ui", "/internal/openapi.yaml")
 }

@@ -222,16 +222,21 @@ func (h API) Revoke(c *web.Ctx) error {
 
 // Me is GET /v1/me: the user of the access token in Authorization: Bearer.
 func (h API) Me(c *web.Ctx) error {
-	scheme, token, ok := strings.Cut(c.R.Header.Get("Authorization"), " ")
-	if !ok || !strings.EqualFold(scheme, "Bearer") || token == "" {
-		c.W.Header().Set("WWW-Authenticate", `Bearer realm="luna-auth"`)
-		return web.Error(http.StatusUnauthorized, "Send the user's access token in Authorization: Bearer.")
-	}
-	u, err := h.verified(c, token)
+	u, err := h.bearer(c)
 	if err != nil {
 		return err
 	}
 	return c.JSON(http.StatusOK, userJSON(u))
+}
+
+// bearer is the user of the access token in Authorization: Bearer.
+func (h API) bearer(c *web.Ctx) (*models.User, error) {
+	scheme, token, ok := strings.Cut(c.R.Header.Get("Authorization"), " ")
+	if !ok || !strings.EqualFold(scheme, "Bearer") || token == "" {
+		c.W.Header().Set("WWW-Authenticate", `Bearer realm="luna-auth"`)
+		return nil, web.Error(http.StatusUnauthorized, "Send the user's access token in Authorization: Bearer.")
+	}
+	return h.verified(c, token)
 }
 
 func (h API) verified(c *web.Ctx, token string) (*models.User, error) {
@@ -383,7 +388,7 @@ func (h API) Reset(c *web.Ctx) error {
 
 // ---- administration: server keys with auth:users.read / auth:users.write ----
 
-// ListUsers is GET /v1/users?page=&per_page=.
+// ListUsers is GET /v1/users?q=&page=&per_page=: q searches emails and usernames.
 func (h API) ListUsers(c *web.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page"))
 	per, _ := strconv.Atoi(c.Query("per_page"))
@@ -397,7 +402,7 @@ func (h API) ListUsers(c *web.Ctx) error {
 	if err != nil {
 		return err
 	}
-	p, err := svc.List(c.Context(), appID(c), page, per)
+	p, err := svc.List(c.Context(), appID(c), c.Query("q"), page, per)
 	if err != nil {
 		return err
 	}

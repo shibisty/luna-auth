@@ -21,7 +21,11 @@ func (RouteProvider) Boot(app *fullstack.App) error {
 	if err != nil {
 		return err
 	}
+	cfg, err := fullstack.Make[KeysConfig](app)
+	if err != nil {
+		return err
+	}
 	app.Router.Use(web.SecureHeaders(false))
-	routes.API(app, v)
+	routes.API(app, v, cfg.Token)
 	return nil
 }

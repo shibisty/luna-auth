@@ -15,18 +15,22 @@ import (
 // dashboard (X-API-Key) with the scope shown; browsers get their preflight
 // answered by keys.CORS. The end user's access token travels in
 // Authorization: Bearer.
-func API(app *fullstack.App, v keys.Verifier) {
+func API(app *fullstack.App, v keys.Verifier, serviceToken string) {
 	app.Router.Get("/healthz", func(c *web.Ctx) error {
 		return c.JSON(200, map[string]string{"status": "ok", "app": app.Config.Name})
 	}).Name("healthz")
 
 	// The OpenAPI document is public like the API; Swagger UI only with API_DOCS=true.
-	docs.Register(app.Router, "/openapi.yaml", "/docs", "Luna Auth API", env.Bool("API_DOCS", false))
+	ui := env.Bool("API_DOCS", false)
+	docs.Register(app.Router, docs.OpenAPI, "docs", "/openapi.yaml", "/docs", "Luna Auth API", ui)
+	docs.Register(app.Router, docs.Internal, "docs.internal", "/internal/openapi.yaml", "/internal/docs", "Luna Auth internal API", ui)
 
 	api := controllers.NewAPI(app)
 	login := keys.RequireKey(v, keys.AuthLogin)
 	read := keys.RequireKey(v, keys.AuthUsersRead)
 	write := keys.RequireKey(v, keys.AuthUsersWrite)
+	dataRead := keys.RequireKey(v, keys.AuthDataRead)
+	dataWrite := keys.RequireKey(v, keys.AuthDataWrite)
 
 	app.Router.Group("/v1", func(r *web.Router) {
 		r.Use(keys.CORS())
@@ -42,6 +46,8 @@ func API(app *fullstack.App, v keys.Verifier) {
 		r.Post("/tokens/revoke", api.Revoke, login).Name("v1.logout")
 		r.Post("/tokens/verify", api.Verify, login).Name("v1.verify")
 		r.Get("/me", api.Me, login).Name("v1.me")
+		r.Get("/me/data", api.MyData, login).Name("v1.me.data")
+		r.Get("/me/data/{key}", api.MyDataKey, login)
 		r.Post("/password/forgot", api.Forgot, login).Name("v1.password.forgot")
 		r.Post("/password/reset", api.Reset, login).Name("v1.password.reset")
 
@@ -49,5 +55,26 @@ func API(app *fullstack.App, v keys.Verifier) {
 		r.Get("/users/{id}", api.ShowUser, read).Name("v1.users.show")
 		r.Patch("/users/{id}", api.UpdateUser, write)
 		r.Delete("/users/{id}", api.DeleteUser, write)
+
+		r.Get("/users/{id}/data", api.UserData, dataRead).Name("v1.users.data")
+		r.Patch("/users/{id}/data", api.PatchUserData, dataWrite)
+		r.Get("/users/{id}/data/{key}", api.UserDataKey, dataRead)
+		r.Put("/users/{id}/data/{key}", api.PutUserData, dataWrite)
+		r.Delete("/users/{id}/data/{key}", api.DeleteUserData, dataWrite)
 	})
+
+	// The dashboard's administration of an application's users. nginx does
+	// not expose /internal/; the dashboard calls it over the service network.
+	app.Router.Group("/internal/v1/apps/{app}", func(r *web.Router) {
+		r.Get("/users", api.ListUsers).Name("internal.users")
+		r.Post("/users", api.CreateUser)
+		r.Get("/users/{id}", api.ShowUser)
+		r.Patch("/users/{id}", api.UpdateUser)
+		r.Delete("/users/{id}", api.DeleteUser)
+		r.Get("/users/{id}/data", api.UserData)
+		r.Patch("/users/{id}/data", api.PatchUserData)
+		r.Get("/users/{id}/data/{key}", api.UserDataKey)
+		r.Put("/users/{id}/data/{key}", api.PutUserData)
+		r.Delete("/users/{id}/data/{key}", api.DeleteUserData)
+	}, controllers.Internal(serviceToken))
 }

@@ -186,14 +186,25 @@ func (s *Service) Find(ctx context.Context, appID, publicID string) (*models.Use
 	return u, err
 }
 
-// List is a page of the application's users, newest first.
-func (s *Service) List(ctx context.Context, appID string, page, perPage int) (orm.Page[models.User], error) {
+// List is a page of the application's users, newest first. A non-empty
+// search keeps the users whose email or username contains it.
+func (s *Service) List(ctx context.Context, appID, search string, page, perPage int) (orm.Page[models.User], error) {
 	repo, err := s.repo()
 	if err != nil {
 		return orm.Page[models.User]{}, err
 	}
-	return repo.Where("app_id", "=", appID).OrderByDesc("id").Paginate(ctx, page, perPage)
+	q := repo.Where("app_id", "=", appID)
+	if search = strings.ToLower(strings.TrimSpace(search)); search != "" {
+		like := "%" + likeEscaper.Replace(search) + "%"
+		q = q.WhereGroup(func(g *orm.Query) {
+			g.Where("email", "LIKE", like).OrWhere("username", "LIKE", like)
+		})
+	}
+	return q.OrderByDesc("id").Paginate(ctx, page, perPage)
 }
+
+// likeEscaper makes a search literal in LIKE (Postgres' default escape is "\").
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
 // Changes are the fields an administrator may change; nil leaves a field.
 type Changes struct {

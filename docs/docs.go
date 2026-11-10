@@ -1,5 +1,7 @@
-// Package docs is the API description: the OpenAPI document (served at
-// /openapi.yaml) and Swagger UI over it (at /docs, when API_DOCS=true).
+// Package docs is the API description: the OpenAPI documents of the public
+// API (served at /openapi.yaml, Swagger UI at /docs) and of the dashboard's
+// internal API (/internal/openapi.yaml, /internal/docs; nginx never routes
+// /internal/). Swagger UI only when API_DOCS=true.
 package docs
 
 import (
@@ -15,18 +17,23 @@ import (
 //go:embed openapi.yaml
 var OpenAPI []byte
 
-// Register serves the document at specPath and, when ui is true, Swagger UI
-// at uiPath. Swagger UI's scripts come from the jsDelivr CDN, so the page
-// needs the internet; the document does not.
-func Register(r *web.Router, specPath, uiPath, title string, ui bool) {
+// Internal is the OpenAPI 3.1 document of the internal API.
+//
+//go:embed internal.yaml
+var Internal []byte
+
+// Register serves doc at specPath and, when ui is true, Swagger UI at
+// uiPath; name prefixes the route names. Swagger UI's scripts come from the
+// jsDelivr CDN, so the page needs the internet; the document does not.
+func Register(r *web.Router, doc []byte, name, specPath, uiPath, title string, ui bool) {
 	r.Get(specPath, func(c *web.Ctx) error {
 		h := c.W.Header()
 		h.Set("Content-Type", "application/yaml; charset=utf-8")
 		h.Set("Cache-Control", "no-cache")
 		h.Set("Access-Control-Allow-Origin", "*") // tools like editor.swagger.io may read it
-		_, err := c.W.Write(OpenAPI)
+		_, err := c.W.Write(doc)
 		return err
-	}).Name("docs.openapi")
+	}).Name(name + ".openapi")
 	if !ui {
 		return
 	}
@@ -34,7 +41,7 @@ func Register(r *web.Router, specPath, uiPath, title string, ui bool) {
 		c.W.Header().Set("Content-Type", "text/html; charset=utf-8")
 		c.W.WriteHeader(http.StatusOK)
 		return page.Execute(c.W, map[string]string{"Title": title, "Spec": specPath})
-	}).Name("docs.ui")
+	}).Name(name + ".ui")
 }
 
 var page = template.Must(template.New("docs").Parse(`<!doctype html>

@@ -1,0 +1,341 @@
+openapi: 3.1.0
+info:
+  title: Luna Auth internal API
+  version: 0.1.0
+  summary: The dashboard's administration of an application's users and their data.
+  description: |
+    Called by luna-dashboard only, over the service network: nginx does not route `/internal/`.
+    Every request carries the dashboard's service token (`LUNA_DASHBOARD_TOKEN`, the secret
+    luna-auth also uses towards the dashboard) in `Authorization: Bearer`. The application comes
+    from the path; the dashboard checks that the signed-in developer owns it before calling.
+
+    The bodies and answers are those of the public API's administration and data operations
+    (`/openapi.yaml`), plus `POST …/users`, which creates a user without logging them in.
+    Errors are `{"error": "…"}`; validation errors are `422` with `errors` by field.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: http://luna-auth:8080
+    description: the service network (compose, Kubernetes)
+  - url: http://localhost:8081
+    description: local (gtr dev)
+security:
+  - serviceToken: []
+tags:
+  - name: users
+    description: The application's users.
+  - name: data
+    description: The application's data about a user (string values by key).
+
+paths:
+  /internal/v1/apps/{app}/users:
+    parameters:
+      - $ref: "#/components/parameters/AppID"
+    get:
+      tags: [users]
+      summary: List the users
+      description: Newest first.
+      operationId: internalListUsers
+      parameters:
+        - name: q
+          in: query
+          description: Keeps the users whose email or username contains it (case-insensitive).
+          schema: { type: string, maxLength: 254 }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+      responses:
+        "200":
+          description: A page of users.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [users]
+      summary: Create a user
+      description: No login and no tokens; the user signs in on the application as usual.
+      operationId: internalCreateUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateUserRequest" }
+      responses:
+        "201":
+          description: The new user.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /internal/v1/apps/{app}/users/{id}:
+    parameters:
+      - $ref: "#/components/parameters/AppID"
+      - $ref: "#/components/parameters/UserID"
+    get:
+      tags: [users]
+      summary: Get a user
+      operationId: internalGetUser
+      responses:
+        "200":
+          description: The user.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [users]
+      summary: Change a user
+      description: As `PATCH /v1/users/{id}`; a new password ends every login of the user.
+      operationId: internalUpdateUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateUserRequest" }
+      responses:
+        "200":
+          description: The changed user.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Invalid" }
+    delete:
+      tags: [users]
+      summary: Delete a user
+      description: The user, their data and every login of theirs.
+      operationId: internalDeleteUser
+      responses:
+        "204": { description: Deleted. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /internal/v1/apps/{app}/users/{id}/data:
+    parameters:
+      - $ref: "#/components/parameters/AppID"
+      - $ref: "#/components/parameters/UserID"
+    get:
+      tags: [data]
+      summary: A user's data
+      operationId: internalGetUserData
+      responses:
+        "200":
+          description: The values by key.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserData" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [data]
+      summary: Set and delete several values
+      description: Strings set, `null` deletes; all or nothing.
+      operationId: internalPatchUserData
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PatchDataRequest" }
+      responses:
+        "200":
+          description: The values by key, after the change.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserData" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /internal/v1/apps/{app}/users/{id}/data/{key}:
+    parameters:
+      - $ref: "#/components/parameters/AppID"
+      - $ref: "#/components/parameters/UserID"
+      - $ref: "#/components/parameters/DataKey"
+    get:
+      tags: [data]
+      summary: One value
+      operationId: internalGetUserDataKey
+      responses:
+        "200":
+          description: The value.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEntry" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [data]
+      summary: Set one value
+      operationId: internalPutUserDataKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PutDataRequest" }
+      responses:
+        "200":
+          description: The value was replaced.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEntry" }
+        "201":
+          description: The key was created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEntry" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Invalid" }
+    delete:
+      tags: [data]
+      summary: Delete one value
+      operationId: internalDeleteUserDataKey
+      responses:
+        "204": { description: Deleted. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  securitySchemes:
+    serviceToken:
+      type: http
+      scheme: bearer
+      description: The dashboard's service token (`LUNA_DASHBOARD_TOKEN` of luna-auth).
+
+  parameters:
+    AppID:
+      name: app
+      in: path
+      required: true
+      description: The application's id in the dashboard.
+      schema: { type: string, format: uuid }
+    UserID:
+      name: id
+      in: path
+      required: true
+      description: The user's id.
+      schema: { type: string, format: uuid }
+    DataKey:
+      name: key
+      in: path
+      required: true
+      schema: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$", example: profile.city }
+
+  responses:
+    Unauthorized:
+      description: No or a wrong service token.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: No such application id, user, or key.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Invalid:
+      description: The request body is invalid.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ValidationError" }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+      required: [error]
+
+    ValidationError:
+      type: object
+      properties:
+        error: { type: string }
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+      required: [error, errors]
+
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: [string, "null"], example: ann }
+        email: { type: string, format: email }
+        email_verified: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+      required: [id, username, email, email_verified, created_at, updated_at]
+
+    UserPage:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/User" }
+        page: { type: integer }
+        per_page: { type: integer }
+        total: { type: integer }
+        last_page: { type: integer }
+      required: [data, page, per_page, total, last_page]
+
+    CreateUserRequest:
+      type: object
+      properties:
+        username: { type: string, maxLength: 32, description: Optional. }
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 8, maxLength: 200, format: password }
+        email_verified: { type: boolean, default: false }
+      required: [email, password]
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        username: { type: string, maxLength: 32, description: '"" removes the username.' }
+        email: { type: string, format: email, maxLength: 254 }
+        email_verified: { type: boolean }
+        password: { type: string, minLength: 8, maxLength: 200, format: password }
+      minProperties: 1
+
+    UserData:
+      type: object
+      properties:
+        data:
+          type: object
+          additionalProperties: { type: string }
+      required: [data]
+
+    DataEntry:
+      type: object
+      properties:
+        key: { type: string }
+        value: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+      required: [key, value, created_at, updated_at]
+
+    PutDataRequest:
+      type: object
+      properties:
+        value: { type: string, maxLength: 16384 }
+      required: [value]
+
+    PatchDataRequest:
+      type: object
+      properties:
+        data:
+          type: object
+          maxProperties: 100
+          additionalProperties:
+            type: [string, "null"]
+            maxLength: 16384
+      required: [data]

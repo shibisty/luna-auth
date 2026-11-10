@@ -40,6 +40,12 @@ tags:
     description: Password reset by email (scope `auth:login`).
   - name: admin
     description: The application's users, for its backend (server keys with `auth:users.read` / `auth:users.write`).
+  - name: data
+    description: |
+      The application's own data about each user: string values by key. Servers read them with
+      `auth:data.read` and write them with `auth:data.write`; a user reads their own with an access
+      token. Keys are 1–64 of `A-Z a-z 0-9 _ . : -`, starting with a letter or a digit; values are
+      UTF-8 text up to 16 KiB; a user has at most 100 keys. The data goes with the user.
   - name: service
     description: Liveness and key checks.
 
@@ -108,6 +114,10 @@ paths:
       description: Newest first. Scope `auth:users.read`.
       operationId: listUsers
       parameters:
+        - name: q
+          in: query
+          description: Keeps the users whose email or username contains it (case-insensitive).
+          schema: { type: string, maxLength: 254 }
         - name: page
           in: query
           schema: { type: integer, minimum: 1, default: 1 }
@@ -179,6 +189,154 @@ paths:
         "401": { $ref: "#/components/responses/KeyInvalid" }
         "403": { $ref: "#/components/responses/KeyForbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/KeysUnavailable" }
+
+  /v1/users/{id}/data:
+    parameters:
+      - $ref: "#/components/parameters/UserID"
+    get:
+      tags: [data]
+      summary: A user's data
+      description: Every value of the user, as one object. Scope `auth:data.read`.
+      operationId: getUserData
+      responses:
+        "200":
+          description: The values by key.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserData" }
+        "401": { $ref: "#/components/responses/KeyInvalid" }
+        "403": { $ref: "#/components/responses/KeyForbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { $ref: "#/components/responses/KeysUnavailable" }
+    patch:
+      tags: [data]
+      summary: Set and delete several values
+      description: |
+        Sets the keys given a string and deletes the keys given `null`, all or nothing; answers with
+        every value afterwards. Scope `auth:data.write`.
+      operationId: patchUserData
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PatchDataRequest" }
+      responses:
+        "200":
+          description: The values by key, after the change.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserData" }
+        "401": { $ref: "#/components/responses/KeyInvalid" }
+        "403": { $ref: "#/components/responses/KeyForbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "503": { $ref: "#/components/responses/KeysUnavailable" }
+
+  /v1/users/{id}/data/{key}:
+    parameters:
+      - $ref: "#/components/parameters/UserID"
+      - $ref: "#/components/parameters/DataKey"
+    get:
+      tags: [data]
+      summary: One value
+      description: Scope `auth:data.read`.
+      operationId: getUserDataKey
+      responses:
+        "200":
+          description: The value.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEntry" }
+        "401": { $ref: "#/components/responses/KeyInvalid" }
+        "403": { $ref: "#/components/responses/KeyForbidden" }
+        "404": { $ref: "#/components/responses/DataNotFound" }
+        "503": { $ref: "#/components/responses/KeysUnavailable" }
+    put:
+      tags: [data]
+      summary: Set one value
+      description: Creates the key or replaces its value. Scope `auth:data.write`.
+      operationId: putUserDataKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PutDataRequest" }
+      responses:
+        "200":
+          description: The value was replaced.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEntry" }
+        "201":
+          description: The key was created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEntry" }
+        "401": { $ref: "#/components/responses/KeyInvalid" }
+        "403": { $ref: "#/components/responses/KeyForbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "503": { $ref: "#/components/responses/KeysUnavailable" }
+    delete:
+      tags: [data]
+      summary: Delete one value
+      description: Scope `auth:data.write`.
+      operationId: deleteUserDataKey
+      responses:
+        "204": { description: Deleted. }
+        "401": { $ref: "#/components/responses/KeyInvalid" }
+        "403": { $ref: "#/components/responses/KeyForbidden" }
+        "404": { $ref: "#/components/responses/DataNotFound" }
+        "503": { $ref: "#/components/responses/KeysUnavailable" }
+
+  /v1/me/data:
+    get:
+      tags: [data]
+      summary: The user's own data
+      description: Read-only. Scope `auth:login` for the key, plus the user's access token.
+      operationId: myData
+      security:
+        - apiKey: []
+          bearer: []
+      responses:
+        "200":
+          description: The values by key.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserData" }
+        "401":
+          description: No or an invalid key, a missing, invalid or expired access token, or a deleted user.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403": { $ref: "#/components/responses/KeyForbidden" }
+        "503": { $ref: "#/components/responses/KeysUnavailable" }
+
+  /v1/me/data/{key}:
+    parameters:
+      - $ref: "#/components/parameters/DataKey"
+    get:
+      tags: [data]
+      summary: One value of the user's own data
+      description: Scope `auth:login` for the key, plus the user's access token.
+      operationId: myDataKey
+      security:
+        - apiKey: []
+          bearer: []
+      responses:
+        "200":
+          description: The value.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEntry" }
+        "401":
+          description: No or an invalid key, a missing, invalid or expired access token, or a deleted user.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403": { $ref: "#/components/responses/KeyForbidden" }
+        "404": { $ref: "#/components/responses/DataNotFound" }
         "503": { $ref: "#/components/responses/KeysUnavailable" }
 
   /v1/sessions:
@@ -390,6 +548,19 @@ components:
       bearerFormat: JWT
       description: The user's access token from a login.
 
+  parameters:
+    UserID:
+      name: id
+      in: path
+      required: true
+      description: The user's id.
+      schema: { type: string, format: uuid }
+    DataKey:
+      name: key
+      in: path
+      required: true
+      schema: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$", example: profile.city }
+
   headers:
     NoStore:
       description: Tokens are never cached.
@@ -415,6 +586,11 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
     NotFound:
       description: No such user in this application.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    DataNotFound:
+      description: No such user in this application, or the user has no value under the key.
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -465,7 +641,7 @@ components:
 
     Scope:
       type: string
-      enum: [auth:login, auth:users.read, auth:users.write, pages:read, pages:write]
+      enum: [auth:login, auth:users.read, auth:users.write, auth:data.read, auth:data.write, pages:read, pages:write]
 
     User:
       type: object
@@ -553,3 +729,39 @@ components:
         email_verified: { type: boolean }
         password: { type: string, minLength: 8, maxLength: 200, format: password }
       minProperties: 1
+
+    UserData:
+      type: object
+      properties:
+        data:
+          type: object
+          additionalProperties: { type: string }
+          example: { profile.city: Kyiv, plan: pro }
+      required: [data]
+
+    DataEntry:
+      type: object
+      properties:
+        key: { type: string, example: profile.city }
+        value: { type: string, example: Kyiv }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+      required: [key, value, created_at, updated_at]
+
+    PutDataRequest:
+      type: object
+      properties:
+        value: { type: string, maxLength: 16384, description: UTF-8 text; may be empty. }
+      required: [value]
+
+    PatchDataRequest:
+      type: object
+      properties:
+        data:
+          type: object
+          maxProperties: 100
+          additionalProperties:
+            type: [string, "null"]
+            maxLength: 16384
+          example: { profile.city: Kyiv, old.flag: null }
+      required: [data]

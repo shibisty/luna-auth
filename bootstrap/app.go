@@ -10,6 +10,7 @@ import (
 	"luna-auth/app/mail"
 	"luna-auth/app/providers"
 	"luna-auth/app/tokens"
+	"luna-auth/app/userdata"
 	"luna-auth/app/users"
 	"luna-auth/database/migrations"
 )
@@ -27,6 +28,7 @@ func NewApp(opts ...fullstack.Options) (*fullstack.App, error) {
 			Migrations: migrations.All,
 		},
 		&users.Provider{},
+		&userdata.Provider{},
 		&tokens.Provider{},
 		&mail.Provider{},
 		&providers.KeysProvider{},
