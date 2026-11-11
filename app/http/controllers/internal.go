@@ -1,10 +1,7 @@
 package controllers
 
 import (
-	"crypto/subtle"
-	"encoding/json"
 	"net/http"
-	"strings"
 
 	"fullstack-validation"
 	"fullstack/web"
@@ -21,49 +18,7 @@ import (
 // application with every auth scope had called. The dashboard checks that
 // the signed-in developer owns the application before it calls.
 func Internal(token string) web.Middleware {
-	want := []byte(token)
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			scheme, got, _ := strings.Cut(r.Header.Get("Authorization"), " ")
-			if !strings.EqualFold(scheme, "Bearer") || subtle.ConstantTimeCompare([]byte(strings.TrimSpace(got)), want) != 1 {
-				w.Header().Set("WWW-Authenticate", `Bearer realm="luna-auth internal"`)
-				internalDeny(w, http.StatusUnauthorized, "missing or invalid service token")
-				return
-			}
-			app := strings.ToLower(r.PathValue("app"))
-			if !uuidLike(app) {
-				internalDeny(w, http.StatusNotFound, "no such application")
-				return
-			}
-			k := &keys.Key{AppID: app, Kind: keys.Server, Scopes: []keys.Scope{
-				keys.AuthLogin, keys.AuthUsersRead, keys.AuthUsersWrite, keys.AuthDataRead, keys.AuthDataWrite,
-			}}
-			next.ServeHTTP(w, r.WithContext(keys.WithKey(r.Context(), k)))
-		})
-	}
-}
-
-func internalDeny(w http.ResponseWriter, status int, msg string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
-}
-
-func uuidLike(s string) bool {
-	if len(s) != 36 {
-		return false
-	}
-	for i, c := range s {
-		switch {
-		case i == 8 || i == 13 || i == 18 || i == 23:
-			if c != '-' {
-				return false
-			}
-		case !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f'):
-			return false
-		}
-	}
-	return true
+	return keys.Internal(token, keys.AuthLogin, keys.AuthUsersRead, keys.AuthUsersWrite, keys.AuthDataRead, keys.AuthDataWrite)
 }
 
 type createUserIn struct {
